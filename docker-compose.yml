@@ -1,0 +1,12 @@
+services:
+  calendarconfig:
+    build: .
+    container_name: calendarconfig
+    restart: unless-stopped
+    ports:
+      - "3010:3000"        # change 3010 if that port is taken on your VPS
+    volumes:
+      - ./data:/data       # config.json persists here
+    environment:
+      - PORT=3000
+      - CONFIG_PATH=/data/config.json

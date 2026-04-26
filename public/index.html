@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Match Calendar Config</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0e0f11;
+    --surface:  #16181c;
+    --border:   #2a2d34;
+    --accent:   #e8ff47;
+    --accent2:  #47c8ff;
+    --text:     #f0f0ee;
+    --muted:    #6b6f7a;
+    --danger:   #ff5c5c;
+    --success:  #47ffb0;
+    --radius:   8px;
+    --mono:     'DM Mono', monospace;
+    --sans:     'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 0 0 80px;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  header span {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .save-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 200;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  #status {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  #status.ok     { color: var(--success); }
+  #status.err    { color: var(--danger);  }
+
+  .btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 10px 28px;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #0e0f11; }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 32px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-header h2 {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .section-header .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .section-body {
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 600px) { .field-row { grid-template-columns: 1fr; } }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .field .hint {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    opacity: 0.7;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 9px 12px;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input[type="text"]:focus,
+  input[type="number"]:focus,
+  select:focus { border-color: var(--accent2); }
+
+  select option { background: var(--surface); }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toggle {
+    position: relative;
+    width: 36px; height: 20px;
+    flex-shrink: 0;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    left: 3px; top: 3px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: transform .2s, background .2s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--accent); }
+  .toggle input:checked + .toggle-slider::before {
+    transform: translateX(16px);
+    background: var(--bg);
+  }
+  .toggle-label { font-size: 13px; color: var(--text); }
+
+  /* Tag list inputs */
+  .tag-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 32px;
+  }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px 4px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+  }
+  .tag-remove {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1;
+    background: none;
+    border: none;
+    color: var(--muted);
+    padding: 0;
+    transition: color .15s;
+  }
+  .tag-remove:hover { color: var(--danger); }
+  .tag-add-row {
+    display: flex;
+    gap: 8px;
+  }
+  .tag-add-row input { flex: 1; }
+  .btn-add {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 400;
+    padding: 0 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--accent);
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .btn-add:hover { border-color: var(--accent); }
+
+  /* Color swatch selector */
+  .color-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .color-opt {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color .15s, transform .1s;
+    position: relative;
+  }
+  .color-opt:hover { transform: scale(1.1); }
+  .color-opt.selected { border-color: var(--text); }
+  .color-opt .color-id {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* Team/league color rows */
+  .color-rule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .color-rule {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+  }
+  .color-rule input[type="text"] {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 0;
+    font-size: 13px;
+  }
+  .color-rule select {
+    width: 130px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  .color-rule .swatch {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .btn-remove-rule {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+    transition: color .15s;
+  }
+  .btn-remove-rule:hover { color: var(--danger); }
+
+  /* League teams table */
+  .league-teams-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .league-team-row {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .league-team-row-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .league-team-row-header input {
+    flex: 1;
+  }
+
+  /* Time window */
+  .time-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .time-row input[type="text"] {
+    width: 90px;
+  }
+  .time-sep {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚽ Match Calendar Config</h1>
+  <span id="last-saved">not saved yet</span>
+</header>
+
+<main id="app">
+
+  <!-- FILTERS -->
+  <div class="section">
+    <div class="section-header"><div class="dot"></div><h2>Sport Filters</h2></div>
+    <div class="section-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Include sports</label>
+          <span class="hint">empty = all sports</span>
+          <div class="tag-input-wrap">
+            <div class="tags" id="sports-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="sports-input" placeholder="e.g. μπασκετ">
+              <button class="btn-add" onclick="addTag('sports')">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Exclude sports</label>
+          <div class="tag-input-wrap">
+            <div class="tags" id="excludeSports-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="excludeSports-input" placeholder="e.g. τενις">
+              <button class="btn-add" onclick="addTag('excludeSports')">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="dot" style="background:var(--accent2)"></div><h2>League Filters</h2></div>
+    <div class="section-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Include leagues</label>
+          <span class="hint">empty = all leagues</span>
+          <div class="tag-input-wrap">
+            <div class="tags" id="leagues-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="leagues-input" placeholder="e.g. euroleague">
+              <button class="btn-add" onclick="addTag('leagues')">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Exclude leagues</label>
+          <div class="tag-input-wrap">
+            <div class="tags" id="excludeLeagues-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="excludeLeagues-input" placeholder="e.g. super league 2">
+              <button class="btn-add" onclick="addTag('excludeLeagues')">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label>Per-league team filters</label>
+        <span class="hint">overrides global team filters for that league — empty teams = all teams in that league</span>
+        <div class="league-teams-list" id="leagueTeams-list"></div>
+        <button class="btn btn-ghost" style="margin-top:8px;width:fit-content" onclick="addLeagueTeamRow()">+ Add League Rule</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="dot" style="background:#ff8c47"></div><h2>Team Filters</h2></div>
+    <div class="section-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Include teams</label>
+          <span class="hint">global — applies to leagues not in per-league rules</span>
+          <div class="tag-input-wrap">
+            <div class="tags" id="teams-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="teams-input" placeholder="e.g. ολυμπιακος">
+              <button class="btn-add" onclick="addTag('teams')">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Exclude teams</label>
+          <div class="tag-input-wrap">
+            <div class="tags" id="excludeTeams-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="excludeTeams-input" placeholder="e.g. παοκ">
+              <button class="btn-add" onclick="addTag('excludeTeams')">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="dot" style="background:var(--muted)"></div><h2>Keyword & Channel Filters</h2></div>
+    <div class="section-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Exclude keywords</label>
+          <span class="hint">matched against league + description</span>
+          <div class="tag-input-wrap">
+            <div class="tags" id="excludeKeywords-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="excludeKeywords-input" placeholder="e.g. κ21">
+              <button class="btn-add" onclick="addTag('excludeKeywords')">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Exclude channels</label>
+          <div class="tag-input-wrap">
+            <div class="tags" id="excludeChannels-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="excludeChannels-input" placeholder="e.g. action 24">
+              <button class="btn-add" onclick="addTag('excludeChannels')">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Include channels only</label>
+          <span class="hint">empty = all channels</span>
+          <div class="tag-input-wrap">
+            <div class="tags" id="channels-tags"></div>
+            <div class="tag-add-row">
+              <input type="text" id="channels-input" placeholder="e.g. cosmote">
+              <button class="btn-add" onclick="addTag('channels')">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Time window</label>
+          <span class="hint">only show matches starting in this range</span>
+          <div class="toggle-row" style="margin-bottom:8px">
+            <label class="toggle">
+              <input type="checkbox" id="timeWindowEnabled" onchange="toggleTimeWindow()">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label" id="timeWindowLabel">Disabled</span>
+          </div>
+          <div class="time-row" id="timeWindowFields" style="display:none">
+            <input type="text" id="timeFrom" placeholder="08:00" style="width:90px">
+            <span class="time-sep">→</span>
+            <input type="text" id="timeTo" placeholder="23:59" style="width:90px">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLORS -->
+  <div class="section">
+    <div class="section-header"><div class="dot" style="background:#ff5c5c"></div><h2>Colors</h2></div>
+    <div class="section-body">
+
+      <div class="field">
+        <label>Default event color</label>
+        <div style="margin-top:18px">
+          <div class="color-grid" id="defaultColor-picker"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label>Team colors <span style="font-weight:400;color:var(--muted)">(highest priority)</span></label>
+        <div class="color-rule-list" id="teamColors-list"></div>
+        <button class="btn btn-ghost" style="margin-top:8px;width:fit-content" onclick="addColorRule('teamColors')">+ Add Team Color</button>
+      </div>
+
+      <div class="field">
+        <label>League colors <span style="font-weight:400;color:var(--muted)">(secondary priority)</span></label>
+        <div class="color-rule-list" id="leagueColors-list"></div>
+        <button class="btn btn-ghost" style="margin-top:8px;width:fit-content" onclick="addColorRule('leagueColors')">+ Add League Color</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CALENDAR -->
+  <div class="section">
+    <div class="section-header"><div class="dot" style="background:var(--success)"></div><h2>Calendar & Duration</h2></div>
+    <div class="section-body">
+      <div class="field">
+        <label>Google Calendar ID</label>
+        <input type="text" id="calendarId" placeholder="abc123@group.calendar.google.com">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Default duration (hours)</label>
+          <input type="number" id="defaultDurationHours" min="0.5" max="8" step="0.5" value="2">
+        </div>
+      </div>
+      <div class="field">
+        <label>Sport durations</label>
+        <span class="hint">override default duration per sport</span>
+        <div class="color-rule-list" id="sportDurations-list"></div>
+        <button class="btn btn-ghost" style="margin-top:8px;width:fit-content" onclick="addSportDuration()">+ Add Sport Duration</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="save-bar">
+  <span id="status">Load config to begin editing</span>
+  <div style="display:flex;gap:10px">
+    <button class="btn btn-ghost" onclick="loadConfig()">↺ Reload</button>
+    <button class="btn btn-primary" onclick="saveConfig()">Save Config →</button>
+  </div>
+</div>
+
+<script>
+const GCAL_COLORS = [
+  { id: '1',  name: 'Lavender',  hex: '#7986cb' },
+  { id: '2',  name: 'Sage',      hex: '#33b679' },
+  { id: '3',  name: 'Grape',     hex: '#8e24aa' },
+  { id: '4',  name: 'Flamingo',  hex: '#e67c73' },
+  { id: '5',  name: 'Banana',    hex: '#f6bf26' },
+  { id: '6',  name: 'Tangerine', hex: '#f4511e' },
+  { id: '7',  name: 'Peacock',   hex: '#039be5' },
+  { id: '8',  name: 'Graphite',  hex: '#616161' },
+  { id: '9',  name: 'Blueberry', hex: '#3f51b5' },
+  { id: '10', name: 'Basil',     hex: '#0b8043' },
+  { id: '11', name: 'Tomato',    hex: '#d50000' },
+];
+
+function colorHex(id) {
+  return (GCAL_COLORS.find(c => c.id === String(id)) || {}).hex || '#616161';
+}
+
+// State
+let state = {};
+
+// ── Tag lists ──────────────────────────────────────────────
+const TAG_FIELDS = ['sports','excludeSports','leagues','excludeLeagues','teams','excludeTeams','excludeKeywords','channels','excludeChannels'];
+
+function renderTags(field) {
+  const container = document.getElementById(`${field}-tags`);
+  container.innerHTML = '';
+  (state[field] || []).forEach((val, i) => {
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerHTML = `${val}<button class="tag-remove" onclick="removeTag('${field}',${i})">×</button>`;
+    container.appendChild(tag);
+  });
+}
+
+function addTag(field) {
+  const input = document.getElementById(`${field}-input`);
+  const val = input.value.trim();
+  if (!val) return;
+  if (!state[field]) state[field] = [];
+  state[field].push(val);
+  input.value = '';
+  renderTags(field);
+}
+
+function removeTag(field, i) {
+  state[field].splice(i, 1);
+  renderTags(field);
+}
+
+document.querySelectorAll('[id$="-input"]').forEach(input => {
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const field = input.id.replace('-input', '');
+      if (TAG_FIELDS.includes(field)) addTag(field);
+    }
+  });
+});
+
+// ── Default color picker ───────────────────────────────────
+function renderDefaultColorPicker() {
+  const container = document.getElementById('defaultColor-picker');
+  container.innerHTML = '';
+  GCAL_COLORS.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'color-opt' + (String(state.defaultColor) === c.id ? ' selected' : '');
+    el.style.background = c.hex;
+    el.title = `${c.name} (${c.id})`;
+    el.innerHTML = `<span class="color-id">${c.id}</span>`;
+    el.onclick = () => { state.defaultColor = c.id; renderDefaultColorPicker(); };
+    container.appendChild(el);
+  });
+}
+
+// ── Color rules (teamColors / leagueColors) ────────────────
+function renderColorRules(field) {
+  const list = document.getElementById(`${field}-list`);
+  list.innerHTML = '';
+  (state[field] || []).forEach((rule, i) => {
+    const row = document.createElement('div');
+    row.className = 'color-rule';
+    const hex = colorHex(rule.color);
+    row.innerHTML = `
+      <div class="swatch" style="background:${hex}"></div>
+      <input type="text" value="${rule.team || rule.league || ''}"
+        placeholder="${field === 'teamColors' ? 'team name' : 'league name'}"
+        oninput="updateColorRule('${field}',${i},'name',this.value)">
+      <select onchange="updateColorRule('${field}',${i},'color',this.value)">
+        ${GCAL_COLORS.map(c => `<option value="${c.id}" ${rule.color===c.id?'selected':''}>${c.name}</option>`).join('')}
+      </select>
+      <button class="btn-remove-rule" onclick="removeColorRule('${field}',${i})">×</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addColorRule(field) {
+  if (!state[field]) state[field] = [];
+  const key = field === 'teamColors' ? 'team' : 'league';
+  state[field].push({ [key]: '', color: '9' });
+  renderColorRules(field);
+}
+
+function updateColorRule(field, i, prop, val) {
+  const key = field === 'teamColors' ? 'team' : 'league';
+  if (prop === 'name') state[field][i][key] = val;
+  if (prop === 'color') state[field][i].color = val;
+  // re-render swatch only
+  const rows = document.querySelectorAll(`#${field}-list .color-rule`);
+  if (rows[i]) {
+    rows[i].querySelector('.swatch').style.background = colorHex(state[field][i].color);
+  }
+}
+
+function removeColorRule(field, i) {
+  state[field].splice(i, 1);
+  renderColorRules(field);
+}
+
+// ── League teams ───────────────────────────────────────────
+function renderLeagueTeams() {
+  const list = document.getElementById('leagueTeams-list');
+  list.innerHTML = '';
+  (state.leagueTeams || []).forEach((rule, i) => {
+    const row = document.createElement('div');
+    row.className = 'league-team-row';
+    row.innerHTML = `
+      <div class="league-team-row-header">
+        <input type="text" value="${rule.league || ''}" placeholder="league name (e.g. euroleague)"
+          oninput="updateLeagueTeam(${i},'league',this.value)">
+        <button class="btn-remove-rule" onclick="removeLeagueTeam(${i})">×</button>
+      </div>
+      <div>
+        <div class="tags" id="lt-tags-${i}"></div>
+        <div class="tag-add-row" style="margin-top:6px">
+          <input type="text" id="lt-input-${i}" placeholder="add team...">
+          <button class="btn-add" onclick="addLeagueTeamTag(${i})">+</button>
+        </div>
+      </div>
+    `;
+    list.appendChild(row);
+    renderLeagueTeamTags(i);
+    document.getElementById(`lt-input-${i}`).addEventListener('keydown', e => {
+      if (e.key === 'Enter') addLeagueTeamTag(i);
+    });
+  });
+}
+
+function renderLeagueTeamTags(i) {
+  const container = document.getElementById(`lt-tags-${i}`);
+  if (!container) return;
+  container.innerHTML = '';
+  (state.leagueTeams[i].teams || []).forEach((t, j) => {
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerHTML = `${t}<button class="tag-remove" onclick="removeLeagueTeamTag(${i},${j})">×</button>`;
+    container.appendChild(tag);
+  });
+}
+
+function addLeagueTeamRow() {
+  if (!state.leagueTeams) state.leagueTeams = [];
+  state.leagueTeams.push({ league: '', teams: [] });
+  renderLeagueTeams();
+}
+
+function addLeagueTeamTag(i) {
+  const input = document.getElementById(`lt-input-${i}`);
+  const val = input.value.trim();
+  if (!val) return;
+  state.leagueTeams[i].teams.push(val);
+  input.value = '';
+  renderLeagueTeamTags(i);
+}
+
+function removeLeagueTeamTag(i, j) {
+  state.leagueTeams[i].teams.splice(j, 1);
+  renderLeagueTeamTags(i);
+}
+
+function removeLeagueTeam(i) {
+  state.leagueTeams.splice(i, 1);
+  renderLeagueTeams();
+}
+
+function updateLeagueTeam(i, prop, val) {
+  state.leagueTeams[i][prop] = val;
+}
+
+// ── Sport durations ────────────────────────────────────────
+function renderSportDurations() {
+  const list = document.getElementById('sportDurations-list');
+  list.innerHTML = '';
+  (state.sportDurations || []).forEach((rule, i) => {
+    const row = document.createElement('div');
+    row.className = 'color-rule';
+    row.innerHTML = `
+      <input type="text" value="${rule.sport || ''}" placeholder="sport name"
+        oninput="updateSportDuration(${i},'sport',this.value)" style="flex:1">
+      <input type="number" value="${rule.hours || 2}" min="0.5" max="8" step="0.5"
+        oninput="updateSportDuration(${i},'hours',parseFloat(this.value))"
+        style="width:70px">
+      <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">hrs</span>
+      <button class="btn-remove-rule" onclick="removeSportDuration(${i})">×</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addSportDuration() {
+  if (!state.sportDurations) state.sportDurations = [];
+  state.sportDurations.push({ sport: '', hours: 2 });
+  renderSportDurations();
+}
+
+function updateSportDuration(i, prop, val) {
+  state.sportDurations[i][prop] = val;
+}
+
+function removeSportDuration(i) {
+  state.sportDurations.splice(i, 1);
+  renderSportDurations();
+}
+
+// ── Time window ────────────────────────────────────────────
+function toggleTimeWindow() {
+  const enabled = document.getElementById('timeWindowEnabled').checked;
+  document.getElementById('timeWindowLabel').textContent = enabled ? 'Enabled' : 'Disabled';
+  document.getElementById('timeWindowFields').style.display = enabled ? 'flex' : 'none';
+}
+
+// ── Render everything from state ───────────────────────────
+function renderAll() {
+  TAG_FIELDS.forEach(renderTags);
+  renderDefaultColorPicker();
+  renderColorRules('teamColors');
+  renderColorRules('leagueColors');
+  renderLeagueTeams();
+  renderSportDurations();
+
+  document.getElementById('calendarId').value = state.calendarId || '';
+  document.getElementById('defaultDurationHours').value = state.defaultDurationHours || 2;
+
+  const tw = state.timeWindow;
+  document.getElementById('timeWindowEnabled').checked = !!tw;
+  toggleTimeWindow();
+  if (tw) {
+    document.getElementById('timeFrom').value = tw.from || '08:00';
+    document.getElementById('timeTo').value   = tw.to   || '23:59';
+  }
+}
+
+// ── Read form values back into state ──────────────────────
+function collectState() {
+  state.calendarId          = document.getElementById('calendarId').value.trim();
+  state.defaultDurationHours = parseFloat(document.getElementById('defaultDurationHours').value) || 2;
+
+  const twEnabled = document.getElementById('timeWindowEnabled').checked;
+  state.timeWindow = twEnabled ? {
+    from: document.getElementById('timeFrom').value.trim() || '08:00',
+    to:   document.getElementById('timeTo').value.trim()   || '23:59'
+  } : null;
+
+  // teamColors/leagueColors names are updated live via oninput
+  // sportDurations same
+}
+
+// ── Load & Save ────────────────────────────────────────────
+async function loadConfig() {
+  setStatus('Loading…', '');
+  try {
+    const res = await fetch('/config');
+    state = await res.json();
+    renderAll();
+    setStatus('Config loaded', 'ok');
+  } catch(e) {
+    setStatus('Failed to load: ' + e.message, 'err');
+  }
+}
+
+async function saveConfig() {
+  collectState();
+  setStatus('Saving…', '');
+  try {
+    const res = await fetch('/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const now = new Date().toLocaleTimeString();
+      document.getElementById('last-saved').textContent = `saved at ${now}`;
+      setStatus('Saved successfully', 'ok');
+    } else {
+      setStatus('Save failed: ' + (data.error || '?'), 'err');
+    }
+  } catch(e) {
+    setStatus('Save failed: ' + e.message, 'err');
+  }
+}
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls;
+}
+
+// Boot
+loadConfig();
+</script>
+</body>
+</html>
