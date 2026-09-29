@@ -400,6 +400,13 @@
     background: var(--border);
     margin: 4px 0;
   }
+
+  .cal-row { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .cal-row-header { display: flex; gap: 8px; align-items: center; }
+  .cal-row-header input[type="text"] { flex: 1; }
+  .cal-list { display: flex; flex-direction: column; gap: 10px; }
+  .cal-swatch { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); flex-shrink: 0; }
+  .cal-swatch.none { background: repeating-linear-gradient(45deg, var(--surface), var(--surface) 4px, var(--border) 4px, var(--border) 8px); }
 </style>
 </head>
 <body>
@@ -573,6 +580,7 @@
 
       <div class="field">
         <label>Default event color</label>
+        <span class="hint">used only for events in the default calendar — events in calendars per league show the calendar's color</span>
         <div style="margin-top:18px">
           <div class="color-grid" id="defaultColor-picker"></div>
         </div>
@@ -595,14 +603,36 @@
     </div>
   </div>
 
-  <!-- CALENDAR -->
+  <!-- CALENDARS -->
   <div class="section">
-    <div class="section-header"><div class="dot" style="background:var(--success)"></div><h2>Calendar & Duration</h2></div>
+    <div class="section-header"><div class="dot" style="background:#b99aff"></div><h2>Calendars</h2></div>
     <div class="section-body">
       <div class="field">
-        <label>Google Calendar ID</label>
-        <input type="text" id="calendarId" placeholder="abc123@group.calendar.google.com">
+        <label>Default calendar</label>
+        <span class="hint">matches whose league fits no calendar below go here — created by name if missing</span>
+        <div class="cal-row-header">
+          <div class="cal-swatch" id="defaultCalendar-swatch"></div>
+          <input type="text" id="defaultCalendarName" placeholder="Sports Matches">
+          <select id="defaultCalendarColor" onchange="updateDefaultCalendarColor(this.value)"></select>
+        </div>
       </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label>Calendars per league</label>
+        <span class="hint">league match = "contains", accent/case-insensitive (e.g. "stoiximan super league" also catches "stoiximan super league 2026-2027"). A match fitting several calendars goes to all of them. Only matches that pass all filters are routed.</span>
+        <div class="cal-list" id="calendars-list"></div>
+        <button class="btn btn-ghost" style="margin-top:8px;width:fit-content" onclick="addCalendar()">+ Add Calendar</button>
+      </div>
+      <span class="hint">Calendar color is applied by n8n when the calendar is created or when you change it here. If you change it directly in Google, it stays until you change it here again. Event colors (team/league rules) still override the calendar color for those events.</span>
+    </div>
+  </div>
+
+  <!-- DURATION -->
+  <div class="section">
+    <div class="section-header"><div class="dot" style="background:var(--success)"></div><h2>Duration</h2></div>
+    <div class="section-body">
       <div class="field-row">
         <div class="field">
           <label>Default duration (hours)</label>
@@ -623,6 +653,9 @@
 <div class="save-bar">
   <span id="status">Load config to begin editing</span>
   <div style="display:flex;gap:10px">
+    <button class="btn btn-ghost" onclick="exportConfig()">⇩ Export</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">⇧ Import</button>
+    <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importConfig(this)">
     <button class="btn btn-ghost" onclick="loadConfig()">↺ Reload</button>
     <button class="btn btn-primary" onclick="saveConfig()">Save Config →</button>
   </div>
@@ -853,6 +886,138 @@ function removeSportDuration(i) {
   renderSportDurations();
 }
 
+// ── Calendars (Google calendar palette — separate from event colors) ──
+const GCAL_CALENDAR_COLORS = [
+  { id: '1',  name: 'Cocoa',          hex: '#ac725e' },
+  { id: '2',  name: 'Flamingo',       hex: '#d06b64' },
+  { id: '3',  name: 'Tomato',         hex: '#f83a22' },
+  { id: '4',  name: 'Tangerine',      hex: '#fa573c' },
+  { id: '5',  name: 'Pumpkin',        hex: '#ff7537' },
+  { id: '6',  name: 'Mango',          hex: '#ffad46' },
+  { id: '7',  name: 'Eucalyptus',     hex: '#42d692' },
+  { id: '8',  name: 'Basil',          hex: '#16a765' },
+  { id: '9',  name: 'Pistachio',      hex: '#7bd148' },
+  { id: '10', name: 'Avocado',        hex: '#b3dc6c' },
+  { id: '11', name: 'Citron',         hex: '#fbe983' },
+  { id: '12', name: 'Banana',         hex: '#fad165' },
+  { id: '13', name: 'Sage',           hex: '#92e1c0' },
+  { id: '14', name: 'Peacock',        hex: '#9fe1e7' },
+  { id: '15', name: 'Cobalt',         hex: '#9fc6e7' },
+  { id: '16', name: 'Blueberry',      hex: '#4986e7' },
+  { id: '17', name: 'Lavender',       hex: '#9a9cff' },
+  { id: '18', name: 'Wisteria',       hex: '#b99aff' },
+  { id: '19', name: 'Graphite',       hex: '#c2c2c2' },
+  { id: '20', name: 'Birch',          hex: '#cabdbf' },
+  { id: '21', name: 'Radicchio',      hex: '#cca6ac' },
+  { id: '22', name: 'Cherry blossom', hex: '#f691b2' },
+  { id: '23', name: 'Grape',          hex: '#cd74e6' },
+  { id: '24', name: 'Amethyst',       hex: '#a47ae2' },
+];
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function calColorOptions(selected) {
+  return `<option value="" ${!selected ? 'selected' : ''}>— don't set (keep Google's) —</option>` +
+    GCAL_CALENDAR_COLORS.map(c =>
+      `<option value="${c.id}" ${String(selected) === c.id ? 'selected' : ''}>${c.name}</option>`
+    ).join('');
+}
+
+function paintCalSwatch(el, colorId) {
+  const c = GCAL_CALENDAR_COLORS.find(x => x.id === String(colorId));
+  el.className = 'cal-swatch' + (c ? '' : ' none');
+  el.style.background = c ? c.hex : '';
+}
+
+function renderDefaultCalendar() {
+  if (!state.defaultCalendar) state.defaultCalendar = { name: 'Sports Matches', color: '' };
+  document.getElementById('defaultCalendarName').value = state.defaultCalendar.name || '';
+  const sel = document.getElementById('defaultCalendarColor');
+  sel.innerHTML = calColorOptions(state.defaultCalendar.color);
+  paintCalSwatch(document.getElementById('defaultCalendar-swatch'), state.defaultCalendar.color);
+}
+
+function updateDefaultCalendarColor(val) {
+  state.defaultCalendar.color = val;
+  paintCalSwatch(document.getElementById('defaultCalendar-swatch'), val);
+}
+
+function renderCalendars() {
+  const list = document.getElementById('calendars-list');
+  list.innerHTML = '';
+  (state.calendars || []).forEach((cal, i) => {
+    const row = document.createElement('div');
+    row.className = 'cal-row';
+    row.innerHTML = `
+      <div class="cal-row-header">
+        <div class="cal-swatch" id="cal-swatch-${i}"></div>
+        <input type="text" value="${esc(cal.name)}" placeholder="calendar name (e.g. Greek Championship)"
+          oninput="updateCalendar(${i},'name',this.value)">
+        <select onchange="updateCalendar(${i},'color',this.value)">${calColorOptions(cal.color)}</select>
+        <button class="btn-remove-rule" onclick="removeCalendar(${i})">×</button>
+      </div>
+      <div>
+        <div class="tags" id="cal-tags-${i}"></div>
+        <div class="tag-add-row" style="margin-top:6px">
+          <input type="text" id="cal-input-${i}" placeholder="add league (e.g. stoiximan super league)...">
+          <button class="btn-add" onclick="addCalendarLeague(${i})">+</button>
+        </div>
+      </div>
+    `;
+    list.appendChild(row);
+    paintCalSwatch(document.getElementById(`cal-swatch-${i}`), cal.color);
+    renderCalendarLeagues(i);
+    document.getElementById(`cal-input-${i}`).addEventListener('keydown', e => {
+      if (e.key === 'Enter') addCalendarLeague(i);
+    });
+  });
+}
+
+function renderCalendarLeagues(i) {
+  const container = document.getElementById(`cal-tags-${i}`);
+  if (!container) return;
+  container.innerHTML = '';
+  (state.calendars[i].leagues || []).forEach((l, j) => {
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerHTML = `${esc(l)}<button class="tag-remove" onclick="removeCalendarLeague(${i},${j})">×</button>`;
+    container.appendChild(tag);
+  });
+}
+
+function addCalendar() {
+  if (!state.calendars) state.calendars = [];
+  state.calendars.push({ name: '', color: '', leagues: [] });
+  renderCalendars();
+}
+
+function updateCalendar(i, prop, val) {
+  state.calendars[i][prop] = val;
+  if (prop === 'color') paintCalSwatch(document.getElementById(`cal-swatch-${i}`), val);
+}
+
+function removeCalendar(i) {
+  state.calendars.splice(i, 1);
+  renderCalendars();
+}
+
+function addCalendarLeague(i) {
+  const input = document.getElementById(`cal-input-${i}`);
+  const val = input.value.trim();
+  if (!val) return;
+  if (!state.calendars[i].leagues) state.calendars[i].leagues = [];
+  state.calendars[i].leagues.push(val);
+  input.value = '';
+  renderCalendarLeagues(i);
+}
+
+function removeCalendarLeague(i, j) {
+  state.calendars[i].leagues.splice(j, 1);
+  renderCalendarLeagues(i);
+}
+
 // ── Time window ────────────────────────────────────────────
 function toggleTimeWindow() {
   const enabled = document.getElementById('timeWindowEnabled').checked;
@@ -868,8 +1033,9 @@ function renderAll() {
   renderColorRules('leagueColors');
   renderLeagueTeams();
   renderSportDurations();
+  renderDefaultCalendar();
+  renderCalendars();
 
-  document.getElementById('calendarId').value = state.calendarId || '';
   document.getElementById('defaultDurationHours').value = state.defaultDurationHours || 2;
 
   const tw = state.timeWindow;
@@ -883,7 +1049,12 @@ function renderAll() {
 
 // ── Read form values back into state ──────────────────────
 function collectState() {
-  state.calendarId          = document.getElementById('calendarId').value.trim();
+  if (!state.defaultCalendar) state.defaultCalendar = { name: 'Sports Matches', color: '' };
+  state.defaultCalendar.name = document.getElementById('defaultCalendarName').value.trim() || 'Sports Matches';
+  // drop empty calendar rows
+  state.calendars = (state.calendars || [])
+    .map(c => ({ name: (c.name || '').trim(), color: c.color || '', leagues: (c.leagues || []).filter(Boolean) }))
+    .filter(c => c.name);
   state.defaultDurationHours = parseFloat(document.getElementById('defaultDurationHours').value) || 2;
 
   const twEnabled = document.getElementById('timeWindowEnabled').checked;
@@ -928,6 +1099,45 @@ async function saveConfig() {
     }
   } catch(e) {
     setStatus('Save failed: ' + e.message, 'err');
+  }
+}
+
+// ── Export / Import ────────────────────────────────────────
+// Export downloads what is currently in the editor (including unsaved edits).
+// Import loads a file into the editor only — press "Save Config" to apply it.
+function exportConfig() {
+  collectState();
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const ts   = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  a.href = url;
+  a.download = `match-config-${ts}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  setStatus('Config exported', 'ok');
+}
+
+const KNOWN_KEYS = ['sports','excludeSports','leagues','excludeLeagues','teams','excludeTeams',
+  'leagueTeams','excludeKeywords','timeWindow','channels','excludeChannels','defaultColor',
+  'teamColors','leagueColors','defaultDurationHours','sportDurations','defaultCalendar','calendars'];
+
+async function importConfig(input) {
+  const file = input.files && input.files[0];
+  input.value = '';                       // allow re-importing the same file
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('not a config object');
+    if (!KNOWN_KEYS.some(k => k in data)) throw new Error('no known config fields found');
+    for (const k of TAG_FIELDS) if (k in data && !Array.isArray(data[k])) throw new Error(`"${k}" must be a list`);
+    state = data;
+    renderAll();
+    setStatus(`Imported ${file.name} — press Save Config to apply`, 'ok');
+  } catch (e) {
+    setStatus('Import failed: ' + e.message, 'err');
   }
 }
 

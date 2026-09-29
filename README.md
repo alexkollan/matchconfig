@@ -60,3 +60,22 @@ In n8n HTTP Request node → Headers → add:
 
 GET  /config  → returns current config.json
 POST /config  → saves body as config.json (returns { ok: true })
+
+## Calendars per league
+
+```json
+"defaultCalendar": { "name": "Sports Matches", "color": "" },
+"calendars": [
+  { "name": "Greek Championship", "color": "14",
+    "leagues": ["stoiximan super league", "stoiximan super league 2026-2027"] }
+]
+```
+
+- n8n finds each calendar by name in your Google account and creates it if missing (never deletes/renames).
+- League match = contains, accent/case-insensitive. A match fitting several calendars goes to all of them; no match → default calendar.
+- `color` = Google calendar palette id (1–24) or empty to leave Google's color. Applied on creation or when changed here; manual changes in Google persist until you change it here.
+
+## Export / Import
+
+- **⇩ Export** downloads the current editor state (incl. unsaved edits) as `match-config-<date>.json`.
+- **⇧ Import** loads a JSON file into the editor only — press **Save Config** to apply it.

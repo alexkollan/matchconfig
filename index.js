@@ -22,7 +22,10 @@ const DEFAULT_CONFIG = {
   timeWindow:          null,
   channels:            [],
   excludeChannels:     [],
-  calendarId:          '',
+  // Default (catch-all) calendar: matches whose league fits no calendar group go here
+  defaultCalendar:     { name: 'Sports Matches', color: '' },
+  // Calendar groups: [{ name, color, leagues: [] }] — n8n creates missing ones by name
+  calendars:           [],
   defaultColor:        '9',
   teamColors:          [],
   leagueColors:        [],
@@ -36,7 +39,8 @@ const DEFAULT_CONFIG = {
 function readConfig() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+      // Merge with defaults so older config files get new keys (e.g. calendars)
+      return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) };
     }
   } catch (e) {
     console.error('Error reading config:', e.message);
