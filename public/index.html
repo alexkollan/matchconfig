@@ -113,7 +113,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;   /* lets color-picker menus extend outside the section */
   }
 
   .section-header {
@@ -407,6 +407,37 @@
   .cal-list { display: flex; flex-direction: column; gap: 10px; }
   .cal-swatch { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); flex-shrink: 0; }
   .cal-swatch.none { background: repeating-linear-gradient(45deg, var(--surface), var(--surface) 4px, var(--border) 4px, var(--border) 8px); }
+
+  /* Custom color picker (swatch + name, for every color choice) */
+  .cpick { position: relative; flex-shrink: 0; width: 190px; }
+  .cpick-btn {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 6px 10px; cursor: pointer; text-align: left;
+  }
+  .cpick-btn:hover, .cpick.open .cpick-btn { border-color: var(--accent2); }
+  .cpick-btn .cpick-caret { margin-left: auto; color: var(--muted); font-size: 10px; }
+  .cpick-dot {
+    width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .cpick-dot.none {
+    background: repeating-linear-gradient(45deg, var(--surface), var(--surface) 3px, var(--border) 3px, var(--border) 6px);
+  }
+  .cpick-menu {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 300;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    max-height: 300px; overflow-y: auto; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .cpick.open .cpick-menu { display: block; }
+  .cpick.up .cpick-menu { top: auto; bottom: calc(100% + 4px); }
+  .cpick-opt {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+    font-family: var(--mono); font-size: 12px; cursor: pointer; color: var(--text);
+  }
+  .cpick-opt:hover { background: var(--border); }
+  .cpick-opt.selected { outline: 1px solid var(--accent2); }
 </style>
 </head>
 <body>
@@ -611,9 +642,8 @@
         <label>Default calendar</label>
         <span class="hint">matches whose league fits no calendar below go here — created by name if missing</span>
         <div class="cal-row-header">
-          <div class="cal-swatch" id="defaultCalendar-swatch"></div>
           <input type="text" id="defaultCalendarName" placeholder="Sports Matches">
-          <select id="defaultCalendarColor" onchange="updateDefaultCalendarColor(this.value)"></select>
+          <div id="defaultCalendarColor"></div>
         </div>
       </div>
 
@@ -743,17 +773,15 @@ function renderColorRules(field) {
   (state[field] || []).forEach((rule, i) => {
     const row = document.createElement('div');
     row.className = 'color-rule';
-    const hex = colorHex(rule.color);
     row.innerHTML = `
-      <div class="swatch" style="background:${hex}"></div>
-      <input type="text" value="${rule.team || rule.league || ''}"
+      <input type="text" value="${esc(rule.team || rule.league || '')}"
         placeholder="${field === 'teamColors' ? 'team name' : 'league name'}"
         oninput="updateColorRule('${field}',${i},'name',this.value)">
-      <select onchange="updateColorRule('${field}',${i},'color',this.value)">
-        ${GCAL_COLORS.map(c => `<option value="${c.id}" ${rule.color===c.id?'selected':''}>${c.name}</option>`).join('')}
-      </select>
+      <span class="cal-picker-slot"></span>
       <button class="btn-remove-rule" onclick="removeColorRule('${field}',${i})">×</button>
     `;
+    row.querySelector('.cal-picker-slot').replaceWith(
+      colorPicker(GCAL_COLORS, rule.color, v => updateColorRule(field, i, 'color', v), false));
     list.appendChild(row);
   });
 }
@@ -769,11 +797,6 @@ function updateColorRule(field, i, prop, val) {
   const key = field === 'teamColors' ? 'team' : 'league';
   if (prop === 'name') state[field][i][key] = val;
   if (prop === 'color') state[field][i].color = val;
-  // re-render swatch only
-  const rows = document.querySelectorAll(`#${field}-list .color-rule`);
-  if (rows[i]) {
-    rows[i].querySelector('.swatch').style.background = colorHex(state[field][i].color);
-  }
 }
 
 function removeColorRule(field, i) {
@@ -887,61 +910,108 @@ function removeSportDuration(i) {
 }
 
 // ── Calendars (Google calendar palette — separate from event colors) ──
+// hex     = value n8n sends to the Google API (legacy palette)
+// preview = how Google Calendar's UI actually displays that color
 const GCAL_CALENDAR_COLORS = [
-  { id: '1',  name: 'Cocoa',          hex: '#ac725e' },
-  { id: '2',  name: 'Flamingo',       hex: '#d06b64' },
-  { id: '3',  name: 'Tomato',         hex: '#f83a22' },
-  { id: '4',  name: 'Tangerine',      hex: '#fa573c' },
-  { id: '5',  name: 'Pumpkin',        hex: '#ff7537' },
-  { id: '6',  name: 'Mango',          hex: '#ffad46' },
-  { id: '7',  name: 'Eucalyptus',     hex: '#42d692' },
-  { id: '8',  name: 'Basil',          hex: '#16a765' },
-  { id: '9',  name: 'Pistachio',      hex: '#7bd148' },
-  { id: '10', name: 'Avocado',        hex: '#b3dc6c' },
-  { id: '11', name: 'Citron',         hex: '#fbe983' },
-  { id: '12', name: 'Banana',         hex: '#fad165' },
-  { id: '13', name: 'Sage',           hex: '#92e1c0' },
-  { id: '14', name: 'Peacock',        hex: '#9fe1e7' },
-  { id: '15', name: 'Cobalt',         hex: '#9fc6e7' },
-  { id: '16', name: 'Blueberry',      hex: '#4986e7' },
-  { id: '17', name: 'Lavender',       hex: '#9a9cff' },
-  { id: '18', name: 'Wisteria',       hex: '#b99aff' },
-  { id: '19', name: 'Graphite',       hex: '#c2c2c2' },
-  { id: '20', name: 'Birch',          hex: '#cabdbf' },
-  { id: '21', name: 'Radicchio',      hex: '#cca6ac' },
-  { id: '22', name: 'Cherry blossom', hex: '#f691b2' },
-  { id: '23', name: 'Grape',          hex: '#cd74e6' },
-  { id: '24', name: 'Amethyst',       hex: '#a47ae2' },
+  { id: '1',  name: 'Cocoa',          hex: '#ac725e', preview: '#795548' },
+  { id: '2',  name: 'Flamingo',       hex: '#d06b64', preview: '#e67c73' },
+  { id: '3',  name: 'Tomato',         hex: '#f83a22', preview: '#d50000' },
+  { id: '4',  name: 'Tangerine',      hex: '#fa573c', preview: '#f4511e' },
+  { id: '5',  name: 'Pumpkin',        hex: '#ff7537', preview: '#ef6c00' },
+  { id: '6',  name: 'Mango',          hex: '#ffad46', preview: '#f09300' },
+  { id: '7',  name: 'Eucalyptus',     hex: '#42d692', preview: '#009688' },
+  { id: '8',  name: 'Basil',          hex: '#16a765', preview: '#0b8043' },
+  { id: '9',  name: 'Pistachio',      hex: '#7bd148', preview: '#7cb342' },
+  { id: '10', name: 'Avocado',        hex: '#b3dc6c', preview: '#c0ca33' },
+  { id: '11', name: 'Citron',         hex: '#fbe983', preview: '#e4c441' },
+  { id: '12', name: 'Banana',         hex: '#fad165', preview: '#f6bf26' },
+  { id: '13', name: 'Sage',           hex: '#92e1c0', preview: '#33b679' },
+  { id: '14', name: 'Peacock',        hex: '#9fe1e7', preview: '#039be5' },
+  { id: '15', name: 'Cobalt',         hex: '#9fc6e7', preview: '#4285f4' },
+  { id: '16', name: 'Blueberry',      hex: '#4986e7', preview: '#3f51b5' },
+  { id: '17', name: 'Lavender',       hex: '#9a9cff', preview: '#7986cb' },
+  { id: '18', name: 'Wisteria',       hex: '#b99aff', preview: '#b39ddb' },
+  { id: '19', name: 'Graphite',       hex: '#c2c2c2', preview: '#616161' },
+  { id: '20', name: 'Birch',          hex: '#cabdbf', preview: '#a79b8e' },
+  { id: '21', name: 'Radicchio',      hex: '#cca6ac', preview: '#ad1457' },
+  { id: '22', name: 'Cherry blossom', hex: '#f691b2', preview: '#d81b60' },
+  { id: '23', name: 'Grape',          hex: '#cd74e6', preview: '#8e24aa' },
+  { id: '24', name: 'Amethyst',       hex: '#a47ae2', preview: '#9e69af' },
 ];
+
+// ── Reusable color picker (swatch + name in the list and on the button) ──
+// palette: [{id,name,hex|preview}], allowNone: adds a "don't set" option
+function colorPicker(palette, selected, onChange, allowNone) {
+  const NONE = { id: '', name: "don't set (keep Google's)" };
+  const opts = (allowNone ? [NONE] : []).concat(palette);
+  const colorOf = c => c.preview || c.hex;
+  const wrap = document.createElement('div');
+  wrap.className = 'cpick';
+  let current = String(selected ?? '');
+
+  function dot(c) {
+    return c && c.id ? `<span class="cpick-dot" style="background:${colorOf(c)}"></span>`
+                     : `<span class="cpick-dot none"></span>`;
+  }
+  function paintButton() {
+    const c = opts.find(o => o.id === current) || (allowNone ? NONE : opts[0]);
+    btn.innerHTML = `${dot(c)}<span>${esc(c.name)}</span><span class="cpick-caret">▼</span>`;
+  }
+  function close() { wrap.classList.remove('open', 'up'); }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cpick-btn';
+  const menu = document.createElement('div');
+  menu.className = 'cpick-menu';
+  opts.forEach(c => {
+    const o = document.createElement('div');
+    o.className = 'cpick-opt' + (c.id === current ? ' selected' : '');
+    o.innerHTML = `${dot(c)}<span>${esc(c.name)}</span>`;
+    o.onclick = e => {
+      e.stopPropagation();
+      current = c.id;
+      menu.querySelectorAll('.cpick-opt').forEach(x => x.classList.remove('selected'));
+      o.classList.add('selected');
+      paintButton();
+      close();
+      onChange(c.id);
+    };
+    menu.appendChild(o);
+  });
+  btn.onclick = e => {
+    e.stopPropagation();
+    const isOpen = wrap.classList.contains('open');
+    document.querySelectorAll('.cpick.open').forEach(p => p.classList.remove('open', 'up'));
+    if (isOpen) return;
+    // open upwards if there's no room below
+    const r = btn.getBoundingClientRect();
+    if (window.innerHeight - r.bottom < 320 && r.top > 320) wrap.classList.add('up');
+    wrap.classList.add('open');
+    const sel = menu.querySelector('.selected');
+    if (sel) menu.scrollTop = Math.max(0, sel.offsetTop - 60);   // show selected without scrolling the page
+  };
+  wrap.append(btn, menu);
+  paintButton();
+  return wrap;
+}
+document.addEventListener('click', () =>
+  document.querySelectorAll('.cpick.open').forEach(p => p.classList.remove('open', 'up')));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.querySelectorAll('.cpick.open').forEach(p => p.classList.remove('open', 'up'));
+});
 
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function calColorOptions(selected) {
-  return `<option value="" ${!selected ? 'selected' : ''}>— don't set (keep Google's) —</option>` +
-    GCAL_CALENDAR_COLORS.map(c =>
-      `<option value="${c.id}" ${String(selected) === c.id ? 'selected' : ''}>${c.name}</option>`
-    ).join('');
-}
-
-function paintCalSwatch(el, colorId) {
-  const c = GCAL_CALENDAR_COLORS.find(x => x.id === String(colorId));
-  el.className = 'cal-swatch' + (c ? '' : ' none');
-  el.style.background = c ? c.hex : '';
-}
-
 function renderDefaultCalendar() {
   if (!state.defaultCalendar) state.defaultCalendar = { name: 'Sports Matches', color: '' };
   document.getElementById('defaultCalendarName').value = state.defaultCalendar.name || '';
-  const sel = document.getElementById('defaultCalendarColor');
-  sel.innerHTML = calColorOptions(state.defaultCalendar.color);
-  paintCalSwatch(document.getElementById('defaultCalendar-swatch'), state.defaultCalendar.color);
-}
-
-function updateDefaultCalendarColor(val) {
-  state.defaultCalendar.color = val;
-  paintCalSwatch(document.getElementById('defaultCalendar-swatch'), val);
+  const holder = document.getElementById('defaultCalendarColor');
+  holder.innerHTML = '';
+  holder.appendChild(colorPicker(GCAL_CALENDAR_COLORS, state.defaultCalendar.color,
+    v => { state.defaultCalendar.color = v; }, true));
 }
 
 function renderCalendars() {
@@ -952,10 +1022,9 @@ function renderCalendars() {
     row.className = 'cal-row';
     row.innerHTML = `
       <div class="cal-row-header">
-        <div class="cal-swatch" id="cal-swatch-${i}"></div>
         <input type="text" value="${esc(cal.name)}" placeholder="calendar name (e.g. Greek Championship)"
           oninput="updateCalendar(${i},'name',this.value)">
-        <select onchange="updateCalendar(${i},'color',this.value)">${calColorOptions(cal.color)}</select>
+        <span class="cal-picker-slot"></span>
         <button class="btn-remove-rule" onclick="removeCalendar(${i})">×</button>
       </div>
       <div>
@@ -966,8 +1035,9 @@ function renderCalendars() {
         </div>
       </div>
     `;
+    row.querySelector('.cal-picker-slot').replaceWith(
+      colorPicker(GCAL_CALENDAR_COLORS, cal.color, v => updateCalendar(i, 'color', v), true));
     list.appendChild(row);
-    paintCalSwatch(document.getElementById(`cal-swatch-${i}`), cal.color);
     renderCalendarLeagues(i);
     document.getElementById(`cal-input-${i}`).addEventListener('keydown', e => {
       if (e.key === 'Enter') addCalendarLeague(i);
@@ -995,7 +1065,6 @@ function addCalendar() {
 
 function updateCalendar(i, prop, val) {
   state.calendars[i][prop] = val;
-  if (prop === 'color') paintCalSwatch(document.getElementById(`cal-swatch-${i}`), val);
 }
 
 function removeCalendar(i) {
