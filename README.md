@@ -73,7 +73,7 @@ POST /config  → saves body as config.json (returns { ok: true })
 
 - n8n finds each calendar by name in your Google account and creates it if missing (never deletes/renames).
 - League match = contains, accent/case-insensitive. A match fitting several calendars goes to all of them; no match → default calendar.
-- `color` = Google calendar palette id (1–24) or empty to leave Google's color. Applied on creation or when changed here; manual changes in Google persist until you change it here.
+- `color` = Google calendar palette id (1–24) or empty. Applied only when n8n creates the calendar; existing calendars are never touched.
 
 ## Export / Import
 
